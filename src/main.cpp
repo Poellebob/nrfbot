@@ -1,11 +1,9 @@
-// ===== YOUR CAR + RF24 GETTINGSTARTED MERGED =====
-
 #include "RF24.h"
 #include "motor.h"
 #include "printf.h"
 #include <SPI.h>
 
-// --------- Motor Pins ----------
+// Motor pins
 #define MTR0f 5
 #define MTR0b 4
 #define MTR0e 2
@@ -15,16 +13,16 @@
 
 Car self = Car(MTR0f, MTR1f, MTR0b, MTR1b, MTR0e, MTR1e);
 
-// --------- NRF24 PINS FOR ARDUINO MEGA ----------
+// NRF24 pins
 #define CE_PIN 48
 #define CSN_PIN 53
 
 RF24 radio(CE_PIN, CSN_PIN);
 
-// --------- RF24 ADDRESSES ----------
+// Addresses
 uint8_t address[][6] = {"1Node", "2Node"};
-bool radioNumber = 1; // This car uses address[1]
-bool role = false;    // false = RX (default)
+bool radioNumber = 1; // this car uses address[1]
+bool role = false;    // false = RX by default
 float payload = 0.0;
 
 void setup() {
@@ -40,9 +38,7 @@ void setup() {
   radio.setPALevel(RF24_PA_LOW);
   radio.setPayloadSize(sizeof(payload));
 
-  // TX pipe: send to the *other* node
   radio.openWritingPipe(address[radioNumber]);
-  // RX pipe: listen to the opposite node
   radio.openReadingPipe(1, address[!radioNumber]);
 
   if (!role)
@@ -55,17 +51,15 @@ void setup() {
 }
 
 void loop() {
-
-  // ====== YOUR JOYSTICK DRIVE CODE (always active) ======
+  // --- Joystick control ---
   int y = analogRead(A0);
   int x = analogRead(A1);
   self.drive(x, y);
 
-  // ====== RF24 TEST MODE ======
-  if (role == true) {
-    // ------- TX MODE -------
+  // --- RF24 TX/RX ---
+  if (role) {
     unsigned long start_timer = micros();
-    bool ok = radio.write(&payload, sizeof(float));
+    bool ok = radio.write(&payload, sizeof(payload));
     unsigned long end_timer = micros();
 
     if (ok) {
@@ -79,9 +73,7 @@ void loop() {
     }
 
     delay(1000);
-
   } else {
-    // ------- RX MODE -------
     uint8_t pipe;
     if (radio.available(&pipe)) {
       radio.read(&payload, sizeof(payload));
@@ -92,7 +84,7 @@ void loop() {
     }
   }
 
-  // ===== SERIAL COMMANDS =====
+  // --- Serial mode switching ---
   if (Serial.available()) {
     char c = toupper(Serial.read());
 
@@ -101,7 +93,6 @@ void loop() {
       radio.stopListening();
       Serial.println("### CAR NOW IN TX MODE ###");
     }
-
     if (c == 'R' && role) {
       role = false;
       radio.startListening();
