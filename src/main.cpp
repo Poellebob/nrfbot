@@ -11,6 +11,12 @@
 #define MTR1b 6
 #define MTR1e 3
 
+#define SL 13
+#define SR 12
+#define SML 11
+#define SM 10
+#define SMR 9
+
 Car self = Car(MTR0f, MTR1f, MTR0b, MTR1b, MTR0e, MTR1e);
 
 // NRF24 pins
@@ -23,7 +29,7 @@ RF24 radio(CE_PIN, CSN_PIN);
 uint8_t address[][6] = {"1Node", "2Node"};
 bool radioNumber = 1; // this car uses address[1]
 bool role = false;    // false = RX by default
-float payload = 0.0;
+int16_t payload[9];
 
 void setup() {
   Serial.begin(9600);
@@ -31,7 +37,7 @@ void setup() {
 
   if (!radio.begin()) {
     Serial.println(F("nRF24 hardware not responding!"));
-    while (1) {
+    while (true) {
     }
   }
 
@@ -41,7 +47,9 @@ void setup() {
   radio.openWritingPipe(address[radioNumber]);
   radio.openReadingPipe(1, address[!radioNumber]);
 
-  if (!role)
+  if (role)
+    radio.stopListening();
+  else
     radio.startListening();
 
   printf_begin();
@@ -51,52 +59,12 @@ void setup() {
 }
 
 void loop() {
-  // --- Joystick control ---
-  int y = analogRead(A0);
-  int x = analogRead(A1);
-  self.drive(x, y);
+  if (radio.available()) {
+    radio.read(&payload, sizeof(payload));
+    Serial.print(payload[0]);
+    Serial.println(payload[1]);
 
-  // --- RF24 TX/RX ---
-  if (role) {
-    unsigned long start_timer = micros();
-    bool ok = radio.write(&payload, sizeof(payload));
-    unsigned long end_timer = micros();
-
-    if (ok) {
-      Serial.print(F("TX OK  | Time: "));
-      Serial.print(end_timer - start_timer);
-      Serial.print(F("us | Payload: "));
-      Serial.println(payload);
-      payload += 0.01;
-    } else {
-      Serial.println(F("TX FAIL"));
-    }
-
-    delay(1000);
-  } else {
-    uint8_t pipe;
-    if (radio.available(&pipe)) {
-      radio.read(&payload, sizeof(payload));
-      Serial.print(F("RX "));
-      Serial.print(payload);
-      Serial.print(F(" on pipe "));
-      Serial.println(pipe);
-    }
+    self.drive(payload[0], payload[1]);
   }
-
-  // --- Serial mode switching ---
-  if (Serial.available()) {
-    char c = toupper(Serial.read());
-
-    if (c == 'T' && !role) {
-      role = true;
-      radio.stopListening();
-      Serial.println("### CAR NOW IN TX MODE ###");
-    }
-    if (c == 'R' && role) {
-      role = false;
-      radio.startListening();
-      Serial.println("### CAR NOW IN RX MODE ###");
-    }
-  }
+  delay(10);
 }
