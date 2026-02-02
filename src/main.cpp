@@ -13,9 +13,11 @@
 
 #define SL 9
 #define SR 13
-#define SML 10
+#define SML 8
 #define SM 11
 #define SMR 12
+
+#define ACTION 31
 
 Car self = Car(MTR0f, MTR1f, MTR0b, MTR1b, MTR0e, MTR1e);
 LineFollower lineFollower = LineFollower(self, SL, SML, SM, SMR, SR);
@@ -33,6 +35,13 @@ uint8_t address[][6] = {"1Node", "2Node"};
 bool radioNumber = 1; // this car uses address[1]
 bool role = false;    // false = RX by default
 int16_t payload[9];
+
+struct Data {
+  Speeds speed;
+  Sensors sensors;
+};
+
+Data display;
 
 void setup() {
   Serial.begin(9600);
@@ -60,15 +69,15 @@ void setup() {
   printf_begin();
   radio.printPrettyDetails();
 
-  Serial.println(F("Car ready. Press T to transmit, R to receive"));
+  pinMode(ACTION, OUTPUT);
 }
 
 void loop() {
   if (radio.available()) {
     int last6 = payload[6];
+    radio.read(&payload, sizeof(payload));
 
     if (!isLineFollower) {
-      radio.read(&payload, sizeof(payload));
       Serial.print(payload[0]);
       Serial.print(", ");
       Serial.print(payload[1]);
@@ -86,15 +95,30 @@ void loop() {
       Serial.print(payload[7]);
       Serial.print(", ");
       Serial.println(payload[8]);
+
+      if (!isLineFollower) {
+        self.drive(payload[0], payload[1]);
+      }
+    } else if (!isLineFollower) {
+      self.drive(512, 512);
     }
 
     if (last6 != payload[6] && payload[6] == 0)
       isLineFollower = !isLineFollower;
 
-    if (isLineFollower)
-      lineFollower.run();
+    if (!payload[3])
+      digitalWrite(ACTION, HIGH);
     else
-      self.drive(payload[0], payload[1]);
+      digitalWrite(ACTION, LOW);
   }
+
+  if (isLineFollower)
+    lineFollower.run();
+
+  display.sensors = lineFollower.getSensors();
+  display.speed = self.getSpeeds();
+
+  radio.write(&display, sizeof(display));
+
   delay(10);
 }
